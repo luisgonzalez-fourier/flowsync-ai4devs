@@ -22,7 +22,7 @@ La API SHALL aceptar `POST /api/v1/auth/signup` con un cuerpo JSON que contenga 
 
 ### Requirement: Validación del registro
 
-La API SHALL rechazar el registro con `422` y un cuerpo `{ "errors": [ ... ] }` cuando los datos no son válidos, con una entrada por cada regla incumplida que incluye `message`, `rule`, `field` y, en las reglas de longitud, `meta` con el límite (`min` o `max`). Las reglas son:
+La API SHALL rechazar el registro con `422` y un cuerpo `{ "errors": [ ... ] }` cuando los datos no son válidos, con una entrada por cada campo inválido, correspondiente a la primera regla que ese campo incumple en el orden indicado abajo, que incluye `message`, `rule`, `field` y, en las reglas de longitud, `meta` con el límite (`min` o `max`). Las reglas son:
 
 - `fullName` MUST estar presente en el cuerpo, aunque sea con valor `null`.
 - `email` MUST ser una dirección de email válida de como mucho 254 caracteres y MUST NOT coincidir con el de una cuenta existente.
@@ -64,7 +64,12 @@ En caso de rechazo, la API MUST NOT crear la cuenta.
 #### Scenario: Varios errores a la vez
 
 - **WHEN** se envía un registro que incumple varias reglas en campos distintos
-- **THEN** la respuesta es `422` y `errors` contiene una entrada por cada regla incumplida
+- **THEN** la respuesta es `422` y `errors` contiene una sola entrada por cada campo inválido
+
+#### Scenario: Solo la primera regla de cada campo
+
+- **WHEN** se envía `passwordConfirmation` con 5 caracteres y distinto de `password`
+- **THEN** el único error de `passwordConfirmation` es `rule` `"minLength"`, sin `sameAs`
 
 ### Requirement: El email distingue mayúsculas y minúsculas
 
@@ -151,8 +156,8 @@ Siempre que la API devuelva un usuario SHALL incluir exactamente `id` (número),
 
 `initials` SHALL calcularse así, en mayúsculas:
 
-- si `fullName` tiene al menos dos palabras separadas por un espacio, la primera letra de las dos primeras;
-- si `fullName` es una sola palabra, sus dos primeras letras;
+- si `fullName` tiene al menos dos palabras separadas por un único espacio, la primera letra de las dos primeras;
+- si `fullName` es una sola palabra, sus dos primeras letras (o la única, si solo tiene una);
 - si `fullName` es `null`, la primera letra de lo que hay antes de la `@` del email y la primera de lo que hay después.
 
 #### Scenario: Iniciales con nombre y apellido
@@ -207,6 +212,11 @@ La aplicación web SHALL ofrecer en `/register` un formulario "Crea tu cuenta" c
 
 - **WHEN** la persona deja "Nombre completo" vacío o solo con espacios y se registra
 - **THEN** la cuenta se crea sin nombre y el perfil muestra "Sin nombre"
+
+#### Scenario: Nombre con espacios alrededor
+
+- **WHEN** la persona escribe " Ada Lovelace " en "Nombre completo" y se registra
+- **THEN** el perfil muestra "Ada Lovelace", sin los espacios de los extremos
 
 #### Scenario: Contraseñas distintas detectadas en el navegador
 
@@ -269,7 +279,7 @@ La aplicación web SHALL mostrar en `/profile`, a una persona con sesión, sus i
 
 ### Requirement: Cierre de sesión desde la web
 
-Al pulsar "Cerrar sesión", la aplicación web SHALL deshabilitar el botón mostrando "Cerrando sesión…", cerrar la sesión en el navegador y llevar a la persona a `/login`, aunque el servidor no confirme la revocación del token.
+Al pulsar "Cerrar sesión", la aplicación web SHALL cerrar la sesión en el navegador y llevar a la persona a `/login` de inmediato, sin esperar a la respuesta del servidor, y SHALL pedir después al servidor que revoque el token, sin mostrar nada si esa petición falla.
 
 #### Scenario: Cerrar sesión
 
@@ -283,11 +293,13 @@ Al pulsar "Cerrar sesión", la aplicación web SHALL deshabilitar el botón most
 
 ### Requirement: Sesión persistente en el navegador
 
-La aplicación web SHALL conservar la sesión entre recargas y pestañas del mismo navegador. Al cargar la aplicación con una sesión guardada, SHALL mostrar un indicador de carga mientras la verifica contra el servidor, y:
+La aplicación web SHALL conservar la sesión entre recargas y en las pestañas que se abran después en el mismo navegador. Una pestaña ya abierta MUST NOT enterarse de que se ha iniciado o cerrado sesión en otra hasta que se recargue. Al cargar la aplicación con una sesión guardada, SHALL mostrar un indicador de carga mientras la verifica contra el servidor, y:
 
 - si el servidor la acepta, SHALL continuar con la sesión iniciada;
 - si el servidor la rechaza, SHALL descartarla y llevar a `/login` con el aviso "Tu sesión ha caducado. Vuelve a iniciar sesión.";
 - si no se puede verificar (servidor caído o error), SHALL llevar a `/login` con el aviso del error correspondiente, pero conservando la sesión guardada para que una recarga posterior la recupere cuando el servidor vuelva.
+
+El aviso de sesión perdida SHALL mostrarse solo en `/login`, no en `/register`, y SHALL sustituirse por el error del intento actual si la persona intenta entrar y falla.
 
 #### Scenario: Recargar con sesión válida
 
