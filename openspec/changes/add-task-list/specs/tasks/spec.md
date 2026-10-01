@@ -129,6 +129,11 @@ El estado de una tarea SHALL ser siempre exactamente uno de `pending`, `in_progr
 - **WHEN** se actualiza una tarea con `{ "status": "blocked" }`
 - **THEN** la respuesta es `422` con un error de `field` `"status"` y la tarea conserva su estado
 
+#### Scenario: Estado nulo o vacío
+
+- **WHEN** se actualiza una tarea con `{ "status": null }` o `{ "status": "" }`
+- **THEN** la respuesta es `422` con un error de `field` `"status"` y la tarea conserva su estado
+
 #### Scenario: Nombre en castellano
 
 - **WHEN** se actualiza una tarea con `{ "status": "Hecho" }`
@@ -140,7 +145,7 @@ El estado de una tarea SHALL ser siempre exactamente uno de `pending`, `in_progr
 
 - ignorar cualquier otro campo del cuerpo, incluido `title`;
 - responder `200` sin cambios si no viene ninguno de los dos campos;
-- responder `422` con un error de `field` `"assigneeId"` si `assigneeId` no corresponde a ninguna persona registrada;
+- responder `422` con un error de `field` `"assigneeId"` si `assigneeId` es `null` o no corresponde a ninguna persona registrada;
 - responder `404` si la tarea no existe.
 
 #### Scenario: Cambiar el estado de una tarea ajena
@@ -175,7 +180,7 @@ El estado de una tarea SHALL ser siempre exactamente uno de `pending`, `in_progr
 
 ### Requirement: Pantalla de la lista del equipo
 
-La aplicación web SHALL mostrar en `/tasks`, a una persona con sesión, la lista de todas las tareas en el orden en que las devuelve la API, la misma para todo el mundo. Cada fila SHALL mostrar, sin abrir nada, el título, el nombre del responsable y el estado como "Pendiente", "En curso" o "Hecho". El responsable SHALL identificarse por su nombre completo, o por "Sin nombre" si no tiene, y MUST NOT mostrarse nunca su email ni su id. La pantalla MUST NOT mostrar fechas, marcas de vencida ni señales de presencia o de actividad por persona. La aplicación MUST NOT ofrecer ninguna otra vista de tareas, como "mis tareas", ni ningún filtro.
+La aplicación web SHALL mostrar en `/tasks`, a una persona con sesión, la lista de todas las tareas en el orden en que las devuelve la API, la misma para todo el mundo. Cada fila SHALL mostrar, sin abrir nada, el título, el nombre del responsable y el estado como "Pendiente", "En curso" o "Hecho". El responsable SHALL identificarse por su nombre completo, o por "Sin nombre" si no tiene o si su nombre está en blanco, y MUST NOT mostrarse nunca su email ni su id. La pantalla MUST NOT mostrar fechas, marcas de vencida ni señales de presencia o de actividad por persona. La aplicación MUST NOT ofrecer ninguna otra vista de tareas, como "mis tareas", ni ningún filtro.
 
 #### Scenario: Cada fila responde quién y en qué estado
 
@@ -185,7 +190,7 @@ La aplicación web SHALL mostrar en `/tasks`, a una persona con sesión, la list
 #### Scenario: Nada de correos ni ids
 
 - **WHEN** se recorre la lista entera
-- **THEN** no aparece ningún email ni ningún identificador numérico de persona
+- **THEN** en ninguna fila aparece el email ni el id de su responsable
 
 #### Scenario: Mientras carga
 
@@ -227,7 +232,7 @@ La pantalla de lista SHALL ofrecer un formulario con un único campo, "Título",
 
 ### Requirement: Errores del título en pantalla
 
-La aplicación web SHALL explicar en castellano, debajo del campo "Título", por qué no se ha creado la tarea, y MUST NOT añadir ninguna fila a la lista en ese caso. Un título vacío o solo con espacios SHALL detectarse en el navegador sin llamar al servidor, con "Escribe un título para la tarea.". Un título de más de 120 caracteres SHALL mostrar "El título no puede superar los 120 caracteres." y conservar en el campo el texto escrito, sin recortarlo.
+La aplicación web SHALL explicar en castellano, debajo del campo "Título", por qué no se ha creado la tarea, y MUST NOT añadir ninguna fila a la lista en ese caso. Un título vacío o solo con espacios SHALL detectarse en el navegador sin llamar al servidor, con "Escribe un título para la tarea.". El navegador SHALL medir el título igual que el servidor, sin los espacios de los extremos. Un título de más de 120 caracteres SHALL mostrar "El título no puede superar los 120 caracteres." y conservar en el campo el texto escrito, sin recortarlo.
 
 #### Scenario: Título vacío
 
@@ -246,7 +251,7 @@ La aplicación web SHALL explicar en castellano, debajo del campo "Título", por
 
 ### Requirement: Cambiar el estado desde la fila
 
-Cada fila de la lista SHALL ofrecer, a la vista, los tres estados "Pendiente", "En curso" y "Hecho", con el actual marcado, como únicos destinos posibles. Un solo clic sobre otro estado SHALL cambiarlo, sin abrir la tarea, sin diálogos de confirmación y sin rellenar ningún campo. Esto SHALL funcionar igual en cualquier tarea, sea quien sea su responsable, y sin advertencias. El nuevo estado SHALL reflejarse en la fila de inmediato, sin esperar a la respuesta del servidor. Si el servidor rechaza el cambio o no responde, la fila SHALL volver al estado anterior y SHALL mostrarse un aviso de error.
+Cada fila de la lista SHALL ofrecer, a la vista, los tres estados "Pendiente", "En curso" y "Hecho", con el actual marcado, como únicos destinos posibles. Un solo clic sobre otro estado SHALL cambiarlo, sin abrir la tarea, sin diálogos de confirmación y sin rellenar ningún campo. Esto SHALL funcionar igual en cualquier tarea, sea quien sea su responsable, y sin advertencias. El nuevo estado SHALL reflejarse en la fila de inmediato, sin esperar a la respuesta del servidor. Mientras el cambio de una fila está pendiente de respuesta, sus botones de estado SHALL quedar deshabilitados. Si el servidor rechaza el cambio o no responde, la fila SHALL volver al estado anterior y SHALL mostrarse un aviso de error.
 
 #### Scenario: Marcar en curso con un clic
 

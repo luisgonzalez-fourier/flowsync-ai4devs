@@ -49,7 +49,7 @@ Historias que cubre:
 
 ### Modified Capabilities
 
-- `auth`: las pantallas de registro e inicio de sesión llevan ahora a la lista en vez de al perfil; la protección de pantallas redirige a `/tasks` en lugar de a `/profile`; el perfil enlaza de vuelta a la lista.
+- `auth`: las pantallas de registro e inicio de sesión, y la sesión recuperada al recargar, llevan ahora a la lista en vez de al perfil; la protección de pantallas redirige a `/tasks` en lugar de a `/profile`; el perfil enlaza de vuelta a la lista.
 
 ## Impact
 
@@ -65,5 +65,6 @@ Historias que cubre:
   - cambios de redirección en los guards y en la ruta por defecto, y un enlace en el perfil.
 
   Reutiliza los componentes de `components/ui/` que ya existen. No se añaden dependencias ni componentes de shadcn nuevos.
+- **Documentación:** `CLAUDE.md` actualiza la tabla de rutas y menciona `/tasks` como portada.
 - **Sin tests:** este change no monta base de pruebas ni añade tests.
 - **Spec base:** el delta de `auth` modifica la spec viva añadida en el PR #1. Este change parte de esa rama.

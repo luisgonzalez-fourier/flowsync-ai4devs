@@ -54,7 +54,7 @@ La migración nueva tiene estas columnas:
 
 No se guarda quién creó la tarea, aparte de usarlo como responsable inicial. Ninguna historia de este change lo usa y añadirlo sería preparar trabajo futuro.
 
-El modelo `Task` extiende el esquema generado y declara solo la relación `belongsTo` `assignee` hacia `User`. Los estados se definen una sola vez en el backend, como una constante `TASK_STATUSES` exportada desde el modelo, que reutilizan el validador y la migración.
+El modelo `Task` extiende el esquema generado y declara solo la relación `belongsTo` `assignee` hacia `User`. Los estados se definen una sola vez en el backend, como una constante `TASK_STATUSES` en un módulo propio, `app/enums/task_status.ts`, sin dependencias del esquema generado, que reutilizan el modelo, el validador y la migración. No puede vivir en el modelo: el modelo importa `#database/schema`, y ese fichero no contiene `TaskSchema` hasta después del primer `migration:run`, así que una migración que importase el modelo fallaría en su primera ejecución.
 
 *Alternativa descartada:* una tabla de estados. Los estados son fijos por requisito (RF-8), y una tabla invitaría a editarlos.
 
@@ -66,6 +66,7 @@ Hay dos validadores en un fichero nuevo de validadores de tareas.
   - El `trim()` hace que `"    "` se quede en `""` y lo rechace `minLength(1)`, porque `required` por sí solo no lo detecta: la cadena llega presente.
   - Como VineJS solo devuelve las claves declaradas, los campos extra (`status`, `assigneeId`) se ignoran sin código adicional.
 - **`updateTaskValidator`:** `{ status: vine.enum(TASK_STATUSES).optional(), assigneeId: vine.number().exists({ table: 'users', column: 'id' }).optional() }`.
+  - El body parser convierte `""` en `null`. Si `.optional()` de VineJS 4 acepta `null` como ausente, `{ "status": null }` pasaría como no-op, y la spec exige `422`. Hay que comprobarlo en sus `.d.ts` y en su comportamiento. Si ocurre, se rechaza de forma explícita: el controlador comprueba con `request.input` si la clave viene con `null` y responde `422` con el mismo formato de error, o bien se usa una regla propia de VineJS. Lo mismo vale para `assigneeId: null`.
   - `title` no se declara, así que se ignora.
   - Un cuerpo vacío valida y deja la tarea como está.
 
@@ -103,7 +104,7 @@ Al tocar rutas y controladores hay que regenerar `.adonisjs/`, arrancando el dev
 ### Frontend: cliente, tipos y página
 
 - **`lib/types.ts`:** añade los tipos `TaskStatus = 'pending' | 'in_progress' | 'done'`, `Task` y `CreateTaskPayload`.
-- **`lib/api.ts`:** añade `listTasks(token)`, `createTask(token, { title })` y `updateTaskStatus(token, id, status)`. Esta última manda solo `{ status }`, porque la UI no reasigna. En la traducción de errores:
+- **`lib/api.ts`:** amplía el tipo `method` de `request()` para que admita `'PATCH'` y añade `listTasks(token)`, `createTask(token, { title })` y `updateTaskStatus(token, id, status)`. Esta última manda solo `{ status }`, porque la UI no reasigna. En la traducción de errores:
   - `FIELD_LABELS` gana `title: 'el título'`;
   - `translate` trata `title` de forma específica: `required`/`minLength` → "Escribe un título para la tarea." y `maxLength` → "El título no puede superar los 120 caracteres.".
 
@@ -115,10 +116,10 @@ Al tocar rutas y controladores hay que regenerar `.adonisjs/`, arrancando el dev
   - un estado de carga, que reutiliza `FullScreenLoader` o un spinner equivalente dentro de la tarjeta;
   - un `Alert` destructivo si la carga o un cambio de estado fallan;
   - el estado vacío, un texto explicativo dentro de la tarjeta que señala el formulario;
-  - la lista, en un `<ul>`: cada `<li>` muestra el título, `assignee.fullName ?? 'Sin nombre'` y un grupo de tres `Button` (`variant="default"` para el estado actual y `"outline"` para los demás, con `aria-pressed`).
+  - la lista, en un `<ul>`: cada `<li>` muestra el título, `assignee.fullName?.trim() || 'Sin nombre'` (la API admite nombres solo con espacios) y un grupo de tres `Button` (`variant="default"` para el estado actual y `"outline"` para los demás, con `aria-pressed`).
 
   Los tres botones hacen a la vez de indicador de estado y de control de un solo clic. Así no hace falta ningún componente nuevo, como `Select` o `ToggleGroup`, ni dependencias nuevas.
-- **Cambio de estado optimista:** se actualiza la fila en el estado local, se llama a la API y, si falla, se restaura el estado anterior de esa fila y se muestra el `Alert`. Con éxito, la fila se sustituye por la tarea que devuelve el servidor.
+- **Cambio de estado optimista:** se actualiza la fila en el estado local, se deshabilitan los botones de esa fila mientras la petición está en curso, se llama a la API y, si falla, se restaura el estado anterior de esa fila y se muestra el `Alert`. Al bloquear la fila, dos clics rápidos no pueden hacer que una reversión pise el estado bueno. Con éxito, la fila se sustituye por la tarea que devuelve el servidor.
 - **Creación:** la tarea devuelta se añade **al final** del array local. No se ordena, y es coherente con "no hay regla de orden".
 - **`401` durante el uso:** `AuthContext` gana `expireSession(message)`, que reutiliza `clearSession` y fija `sessionError`. La página la llama ante un `ApiError` con `status === 401`, y `ProtectedRoute` lleva a `/login`, donde el aviso ya se pinta hoy.
 
@@ -136,6 +137,7 @@ Al tocar rutas y controladores hay que regenerar `.adonisjs/`, arrancando el dev
 - **[Lista desactualizada]** Sin refresco automático, dos personas pueden ver estados distintos hasta recargar, y un cambio optimista puede pisar el de otra persona. → Aceptado: E3-2 lo resuelve, y la spec define la lista como correcta en el momento en que se pide.
 - **[Marcar hecho por error]** Un solo clic y sin confirmación (PA-7). → Mitigado porque "Hecho" no oculta la tarea y se puede volver atrás con otro clic.
 - **[Reasignación sin UI]** La API acepta `assigneeId`, pero nada en pantalla lo usa, así que solo se puede comprobar con peticiones manuales. → Aceptado por alcance: la UI llega con la historia de reasignar.
+- **[Longitud del título]** VineJS mide en unidades UTF-16 (un emoji cuenta 2) y SQLite no impone el `string(120)`, así que el único guardián real es el validador. → El cliente mide igual (`title.trim().length`) y el servidor manda.
 - **[Volumen]** La lista se pide entera, sin paginar. Con el volumen previsto por el PRD (unas 200 tareas) cabe sin problema. → No se pagina hasta que haga falta.
 - **[Sin tests]** No hay red de seguridad automática. → La verificación de tasks.md se apoya en el typecheck, el lint y el build de las dos capas, y en una comprobación manual con el servidor de desarrollo.
 

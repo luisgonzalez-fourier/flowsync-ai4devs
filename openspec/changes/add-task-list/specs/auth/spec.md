@@ -101,3 +101,33 @@ Cualquier otra dirección SHALL redirigirse a `/tasks`. Mientras se verifica una
 
 - **WHEN** alguien abre una dirección que no existe, por ejemplo `/`
 - **THEN** es llevado a `/tasks`, y de ahí a `/login` si no tiene sesión
+
+### Requirement: Sesión persistente en el navegador
+
+La aplicación web SHALL conservar la sesión entre recargas y en las pestañas que se abran después en el mismo navegador. Una pestaña ya abierta MUST NOT enterarse de que se ha iniciado o cerrado sesión en otra hasta que se recargue. Al cargar la aplicación con una sesión guardada, SHALL mostrar un indicador de carga mientras la verifica contra el servidor, y:
+
+- si el servidor la acepta, SHALL continuar con la sesión iniciada;
+- si el servidor la rechaza, SHALL descartarla y llevar a `/login` con el aviso "Tu sesión ha caducado. Vuelve a iniciar sesión.";
+- si no se puede verificar (servidor caído o error), SHALL llevar a `/login` con el aviso del error correspondiente, pero conservando la sesión guardada para que una recarga posterior la recupere cuando el servidor vuelva.
+
+El aviso de sesión perdida SHALL mostrarse solo en `/login`, no en `/register`, y SHALL sustituirse por el error del intento actual si la persona intenta entrar y falla.
+
+#### Scenario: Recargar con sesión válida
+
+- **WHEN** una persona con sesión recarga `/profile`
+- **THEN** ve un indicador de carga y después su perfil, sin pasar por `/login`
+
+#### Scenario: Sesión revocada en el servidor
+
+- **WHEN** se carga la aplicación con una sesión guardada cuyo token el servidor ya no reconoce
+- **THEN** la persona ve `/login` con el aviso "Tu sesión ha caducado. Vuelve a iniciar sesión."
+
+#### Scenario: Servidor caído al recargar
+
+- **WHEN** se carga la aplicación con una sesión guardada y el servidor no responde
+- **THEN** la persona ve `/login` con "No se pudo conectar con el servidor. Comprueba que el backend está arrancado." y, al recargar con el servidor ya arrancado, vuelve a ver la lista de tareas en `/tasks`
+
+#### Scenario: El aviso desaparece al volver a entrar
+
+- **WHEN** la persona ve el aviso de sesión perdida en `/login` e inicia sesión con éxito
+- **THEN** el aviso deja de mostrarse
